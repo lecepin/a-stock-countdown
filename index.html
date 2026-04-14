@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>交易倒计时</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+    background:#0a0e17;
+    color:#c8d6e5;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:30px 16px 60px;
+  }
+  h1{
+    font-size:28px;
+    font-weight:700;
+    letter-spacing:2px;
+    margin-bottom:6px;
+    background:linear-gradient(135deg,#e74c3c,#f39c12);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+  .subtitle{
+    font-size:13px;
+    color:#576574;
+    margin-bottom:28px;
+  }
+  .clock{
+    font-size:42px;
+    font-weight:300;
+    letter-spacing:4px;
+    color:#f5f6fa;
+    margin-bottom:8px;
+    font-variant-numeric:tabular-nums;
+  }
+  .date-info{
+    font-size:13px;
+    color:#576574;
+    margin-bottom:32px;
+  }
+  .market-status{
+    display:inline-block;
+    padding:5px 18px;
+    border-radius:20px;
+    font-size:14px;
+    font-weight:600;
+    margin-bottom:30px;
+    letter-spacing:1px;
+  }
+  .status-trading{background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid rgba(231,76,60,.3)}
+  .status-auction{background:rgba(243,156,18,.15);color:#f39c12;border:1px solid rgba(243,156,18,.3)}
+  .status-closed{background:rgba(99,110,114,.15);color:#636e72;border:1px solid rgba(99,110,114,.3)}
+  .status-break{background:rgba(108,92,231,.15);color:#6c5ce7;border:1px solid rgba(108,92,231,.3)}
+
+  .timeline{
+    width:100%;
+    max-width:520px;
+    position:relative;
+    padding-left:28px;
+  }
+  .timeline::before{
+    content:'';
+    position:absolute;
+    left:9px;
+    top:0;
+    bottom:0;
+    width:2px;
+    background:#1e2a3a;
+    border-radius:1px;
+  }
+  .phase{
+    position:relative;
+    padding:14px 20px;
+    margin-bottom:4px;
+    border-radius:12px;
+    transition:all .4s ease;
+    cursor:default;
+  }
+  .phase .dot{
+    position:absolute;
+    left:-23px;
+    top:50%;
+    transform:translateY(-50%);
+    width:12px;
+    height:12px;
+    border-radius:50%;
+    border:2px solid #1e2a3a;
+    background:#0a0e17;
+    transition:all .4s ease;
+    z-index:1;
+  }
+
+  /* 已结束 */
+  .phase.past{opacity:.35}
+  .phase.past .dot{background:#2d3436;border-color:#2d3436}
+  .phase.past .phase-time{color:#fff;background:rgba(255,255,255,.02)}
+  .phase.past .phase-name{color:#4a5568}
+  .phase.past .phase-countdown{color:#4a5568}
+
+  /* 进行中 */
+  .phase.active{
+    background:rgba(231,76,60,.08);
+    border:1px solid rgba(231,76,60,.2);
+  }
+  .phase.active .dot{
+    background:#e74c3c;
+    border-color:#e74c3c;
+    box-shadow:0 0 12px rgba(231,76,60,.6);
+    animation:pulse 1.5s ease-in-out infinite;
+  }
+  .phase.active .phase-name{color:#f5f6fa;font-weight:600}
+  .phase.active .phase-time{color:#fff;background:rgba(231,76,60,.25)}
+  .phase.active .phase-countdown{color:#e74c3c;font-weight:700}
+
+  /* 未开始 */
+  .phase.future{opacity:.45}
+  .phase.future .dot{background:#1e2a3a;border-color:#2d3d50}
+  .phase.future .phase-time{color:#fff;background:rgba(255,255,255,.03)}
+  .phase.future .phase-name{color:#4a6a8a}
+  .phase.future .phase-countdown{color:#4a6a8a}
+
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 8px rgba(231,76,60,.4)}
+    50%{box-shadow:0 0 20px rgba(231,76,60,.8)}
+  }
+
+  .phase-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .phase-left{display:flex;align-items:center;gap:12px;min-width:0}
+  .phase-time{
+    font-size:13px;
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+    min-width:42px;
+    color:#fff;
+    background:rgba(255,255,255,.06);
+    padding:2px 8px;
+    border-radius:4px;
+    font-weight:500;
+    letter-spacing:.5px;
+  }
+  .phase-name{
+    font-size:15px;
+    color:#a0aec0;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .phase-countdown{
+    font-size:13px;
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+    color:#636e72;
+    min-width:70px;
+    text-align:right;
+  }
+
+  .progress-bar{
+    margin-top:8px;
+    height:3px;
+    border-radius:2px;
+    background:rgba(231,76,60,.1);
+    overflow:hidden;
+    display:none;
+  }
+  .phase.active .progress-bar{display:block}
+  .progress-fill{
+    height:100%;
+    border-radius:2px;
+    background:linear-gradient(90deg,#e74c3c,#f39c12);
+    transition:width 1s linear;
+  }
+
+  .weekend-note{
+    text-align:center;
+    color:#636e72;
+    font-size:15px;
+    margin-top:40px;
+    line-height:1.8;
+  }
+  .weekend-note span{color:#f39c12}
+
+  @media(max-width:480px){
+    h1{font-size:22px}
+    .clock{font-size:34px}
+    .phase{padding:10px 14px}
+    .phase-name{font-size:13px}
+    .phase-time{font-size:12px}
+    .phase-countdown{font-size:12px;min-width:60px}
+  }
+</style>
+</head>
+<body>
+
+<h1>交易倒计时</h1>
+<div class="subtitle">上海证券交易所 · 深圳证券交易所</div>
+<div class="clock" id="clock">--:--:--</div>
+<div class="date-info" id="dateInfo">----年--月--日 星期-</div>
+<div class="market-status" id="marketStatus">加载中...</div>
+
+<div class="timeline" id="timeline"></div>
+
+<script>
+const PHASES = [
+  { time: '09:15', name: '集合竞价 · 可撤单', desc: '开放式集合竞价，可自由申报和撤单' },
+  { time: '09:20', name: '集合竞价 · 不可撤单', desc: '仅可申报，不可撤单' },
+  { time: '09:25', name: '竞价撮合', desc: '交易所撮合产生开盘价' },
+  { time: '09:30', name: '早盘连续交易', desc: '上午连续竞价交易时段' },
+  { time: '11:30', name: '午间休市', desc: '中场休息，暂停交易' },
+  { time: '13:00', name: '午盘连续交易', desc: '下午连续竞价交易时段' },
+  { time: '14:57', name: '尾盘集合竞价', desc: '收盘集合竞价，不可撤单' },
+  { time: '15:00', name: '收盘', desc: '全天交易结束' },
+];
+
+function getChinaTime() {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  return new Date(utc + 8 * 3600000);
+}
+
+function timeToMinutes(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function formatCountdown(totalSeconds) {
+  if (totalSeconds <= 0) return '已结束';
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+  if (m > 0) return `${m}:${pad(s)}`;
+  return `${s}秒`;
+}
+
+const weekDays = ['日','一','二','三','四','五','六'];
+
+function isWeekend(d) {
+  const day = d.getDay();
+  return day === 0 || day === 6;
+}
+
+function buildTimeline() {
+  const container = document.getElementById('timeline');
+  container.innerHTML = '';
+  PHASES.forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'phase future';
+    div.id = `phase-${i}`;
+    div.innerHTML = `
+      <div class="dot"></div>
+      <div class="phase-header">
+        <div class="phase-left">
+          <span class="phase-time">${p.time}</span>
+          <span class="phase-name">${p.name}</span>
+        </div>
+        <span class="phase-countdown" id="cd-${i}">--:--</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="pf-${i}"></div></div>
+    `;
+    div.title = p.desc;
+    container.appendChild(div);
+  });
+}
+
+function update() {
+  const now = getChinaTime();
+  const clockEl = document.getElementById('clock');
+  const dateEl = document.getElementById('dateInfo');
+  const statusEl = document.getElementById('marketStatus');
+
+  clockEl.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  dateEl.textContent = `${now.getFullYear()}年${pad(now.getMonth()+1)}月${pad(now.getDate())}日 星期${weekDays[now.getDay()]}`;
+
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  const weekend = isWeekend(now);
+
+  if (weekend) {
+    statusEl.textContent = '周末休市';
+    statusEl.className = 'market-status status-closed';
+    PHASES.forEach((_, i) => {
+      const el = document.getElementById(`phase-${i}`);
+      el.className = 'phase past';
+      document.getElementById(`cd-${i}`).textContent = '休市';
+    });
+    return;
+  }
+
+  // 找到下一个尚未到达的时间点 => 即为当前激活项
+  let activeIdx = -1;
+  for (let i = 0; i < PHASES.length; i++) {
+    if (nowSec < timeToMinutes(PHASES[i].time) * 60) {
+      activeIdx = i;
+      break;
+    }
+  }
+
+  // 所有时间点都已过 => 已收盘
+  if (activeIdx === -1) {
+    statusEl.textContent = '今日已收盘';
+    statusEl.className = 'market-status status-closed';
+    PHASES.forEach((_, i) => {
+      const el = document.getElementById(`phase-${i}`);
+      el.className = 'phase past';
+      document.getElementById(`cd-${i}`).textContent = '已结束';
+    });
+    return;
+  }
+
+  // 根据已经过去的最近时间点判断当前市场状态
+  const lastPassedIdx = activeIdx - 1;
+  if (lastPassedIdx < 0) {
+    statusEl.textContent = '盘前等待';
+    statusEl.className = 'market-status status-closed';
+  } else if (lastPassedIdx === 3 || lastPassedIdx === 5) {
+    statusEl.textContent = '交易中';
+    statusEl.className = 'market-status status-trading';
+  } else if (lastPassedIdx === 0 || lastPassedIdx === 1 || lastPassedIdx === 2 || lastPassedIdx === 6) {
+    statusEl.textContent = '竞价中';
+    statusEl.className = 'market-status status-auction';
+  } else if (lastPassedIdx === 4) {
+    statusEl.textContent = '午间休市';
+    statusEl.className = 'market-status status-break';
+  }
+
+  PHASES.forEach((p, i) => {
+    const el = document.getElementById(`phase-${i}`);
+    const cdEl = document.getElementById(`cd-${i}`);
+    const targetSec = timeToMinutes(p.time) * 60;
+
+    if (i < activeIdx) {
+      el.className = 'phase past';
+      cdEl.textContent = '已结束';
+    } else if (i === activeIdx) {
+      el.className = 'phase active';
+      const remaining = targetSec - nowSec;
+      cdEl.textContent = formatCountdown(Math.max(0, remaining));
+      // 进度条：从上一个时间点到这个时间点的进度
+      const prevSec = (i > 0) ? timeToMinutes(PHASES[i - 1].time) * 60 : 0;
+      const total = targetSec - prevSec;
+      const elapsed = nowSec - prevSec;
+      const progress = Math.min(100, Math.max(0, (elapsed / total) * 100));
+      const pf = document.getElementById(`pf-${i}`);
+      if (pf) pf.style.width = progress + '%';
+    } else {
+      el.className = 'phase future';
+      const remaining = targetSec - nowSec;
+      cdEl.textContent = formatCountdown(remaining);
+    }
+  });
+}
+
+buildTimeline();
+update();
+setInterval(update, 300);
+</script>
+
+</body>
+</html>
