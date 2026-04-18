@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -57,6 +58,57 @@
   .status-closed{background:rgba(99,110,114,.15);color:#636e72;border:1px solid rgba(99,110,114,.3)}
   .status-break{background:rgba(108,92,231,.15);color:#6c5ce7;border:1px solid rgba(108,92,231,.3)}
 
+  .debug-panel{
+    background:rgba(243,156,18,.08);
+    border:1px solid rgba(243,156,18,.25);
+    border-radius:10px;
+    padding:10px 18px;
+    margin-bottom:20px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:13px;
+    color:#f39c12;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .debug-panel label{white-space:nowrap}
+  .debug-panel input[type="time"]{
+    background:#131926;
+    border:1px solid rgba(243,156,18,.3);
+    color:#f5f6fa;
+    padding:5px 10px;
+    border-radius:6px;
+    font-size:14px;
+    font-family:inherit;
+    outline:none;
+  }
+  .debug-panel input[type="time"]:focus{border-color:rgba(243,156,18,.6)}
+  .debug-panel button{
+    background:rgba(243,156,18,.15);
+    border:1px solid rgba(243,156,18,.35);
+    color:#f39c12;
+    padding:5px 14px;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:13px;
+    font-family:inherit;
+    transition:background .2s;
+  }
+  .debug-panel button:hover{background:rgba(243,156,18,.28)}
+  .debug-badge{
+    position:fixed;
+    top:8px;
+    right:12px;
+    background:rgba(243,156,18,.2);
+    color:#f39c12;
+    font-size:11px;
+    padding:2px 8px;
+    border-radius:4px;
+    letter-spacing:.5px;
+    z-index:99;
+  }
+
   .timeline{
     width:100%;
     max-width:520px;
@@ -95,14 +147,12 @@
     z-index:1;
   }
 
-  /* 已结束 */
   .phase.past{opacity:.35}
   .phase.past .dot{background:#2d3436;border-color:#2d3436}
   .phase.past .phase-time{color:#fff;background:rgba(255,255,255,.02)}
   .phase.past .phase-name{color:#4a5568}
   .phase.past .phase-countdown{color:#4a5568}
 
-  /* 进行中 */
   .phase.active{
     background:rgba(231,76,60,.08);
     border:1px solid rgba(231,76,60,.2);
@@ -111,22 +161,43 @@
     background:#e74c3c;
     border-color:#e74c3c;
     box-shadow:0 0 12px rgba(231,76,60,.6);
-    animation:pulse 1.5s ease-in-out infinite;
+    animation:pulse-red 1.5s ease-in-out infinite;
   }
   .phase.active .phase-name{color:#f5f6fa;font-weight:600}
   .phase.active .phase-time{color:#fff;background:rgba(231,76,60,.25)}
   .phase.active .phase-countdown{color:#e74c3c;font-weight:700}
+  .phase.active .progress-bar{display:block;background:rgba(231,76,60,.1)}
+  .phase.active .progress-fill{background:linear-gradient(90deg,#e74c3c,#f39c12)}
 
-  /* 未开始 */
+  .phase.active-pause{
+    background:rgba(86,140,224,.08);
+    border:1px solid rgba(86,140,224,.2);
+  }
+  .phase.active-pause .dot{
+    background:#568ce0;
+    border-color:#568ce0;
+    box-shadow:0 0 12px rgba(86,140,224,.6);
+    animation:pulse-blue 1.5s ease-in-out infinite;
+  }
+  .phase.active-pause .phase-name{color:#f5f6fa;font-weight:600}
+  .phase.active-pause .phase-time{color:#fff;background:rgba(86,140,224,.25)}
+  .phase.active-pause .phase-countdown{color:#568ce0;font-weight:700}
+  .phase.active-pause .progress-bar{display:block;background:rgba(86,140,224,.1)}
+  .phase.active-pause .progress-fill{background:linear-gradient(90deg,#568ce0,#74b9ff)}
+
   .phase.future{opacity:.45}
   .phase.future .dot{background:#1e2a3a;border-color:#2d3d50}
   .phase.future .phase-time{color:#fff;background:rgba(255,255,255,.03)}
   .phase.future .phase-name{color:#4a6a8a}
   .phase.future .phase-countdown{color:#4a6a8a}
 
-  @keyframes pulse{
+  @keyframes pulse-red{
     0%,100%{box-shadow:0 0 8px rgba(231,76,60,.4)}
     50%{box-shadow:0 0 20px rgba(231,76,60,.8)}
+  }
+  @keyframes pulse-blue{
+    0%,100%{box-shadow:0 0 8px rgba(86,140,224,.4)}
+    50%{box-shadow:0 0 20px rgba(86,140,224,.8)}
   }
 
   .phase-header{
@@ -196,13 +267,15 @@
     .phase-name{font-size:13px}
     .phase-time{font-size:12px}
     .phase-countdown{font-size:12px;min-width:60px}
+    .debug-panel{padding:8px 12px;gap:8px}
   }
 </style>
 </head>
 <body>
 
 <h1>交易倒计时</h1>
-<div class="subtitle">上海证券交易所 · 深圳证券交易所</div>
+<div class="subtitle" id="subtitle">上海证券交易所 · 深圳证券交易所</div>
+<div id="debugContainer"></div>
 <div class="clock" id="clock">--:--:--</div>
 <div class="date-info" id="dateInfo">----年--月--日 星期-</div>
 <div class="market-status" id="marketStatus">加载中...</div>
@@ -211,25 +284,35 @@
 
 <script>
 const PHASES = [
-  { time: '09:15', name: '集合竞价 · 可撤单', desc: '开放式集合竞价，可自由申报和撤单' },
-  { time: '09:20', name: '集合竞价 · 不可撤单', desc: '仅可申报，不可撤单' },
-  { time: '09:25', name: '竞价撮合', desc: '交易所撮合产生开盘价' },
-  { time: '09:30', name: '早盘连续交易', desc: '上午连续竞价交易时段' },
-  { time: '11:30', name: '午间休市', desc: '中场休息，暂停交易' },
-  { time: '13:00', name: '午盘连续交易', desc: '下午连续竞价交易时段' },
-  { time: '14:57', name: '尾盘集合竞价', desc: '收盘集合竞价，不可撤单' },
-  { time: '15:00', name: '收盘', desc: '全天交易结束' },
+  { start: '09:15', end: '09:20', name: '集合竞价 · 可撤单', desc: '开放式集合竞价，可自由申报和撤单', status: 'auction' },
+  { start: '09:20', end: '09:25', name: '集合竞价 · 不可撤单', desc: '仅可申报，不可撤单', status: 'auction' },
+  { start: '09:25', end: '09:30', name: '竞价撮合', desc: '交易所撮合产生开盘价', status: 'pause' },
+  { start: '09:30', end: '11:30', name: '早盘连续交易', desc: '上午连续竞价交易时段', status: 'trading' },
+  { start: '11:30', end: '13:00', name: '午间休市', desc: '中场休息，暂停交易', status: 'pause' },
+  { start: '13:00', end: '14:57', name: '午盘连续交易', desc: '下午连续竞价交易时段', status: 'trading' },
+  { start: '14:57', end: '15:00', name: '尾盘集合竞价', desc: '收盘集合竞价，不可撤单', status: 'auction' },
+  { start: '15:00', end: null,    name: '收盘', desc: '全天交易结束', status: 'closed' },
 ];
 
-function getChinaTime() {
+const urlParams = new URLSearchParams(window.location.search);
+const debugMode = urlParams.has('d');
+let debugOffset = 0;
+
+function getRealChinaTime() {
   const now = new Date();
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
   return new Date(utc + 8 * 3600000);
 }
 
-function timeToMinutes(t) {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
+function getChinaTime() {
+  const real = getRealChinaTime();
+  if (debugOffset !== 0) return new Date(real.getTime() + debugOffset);
+  return real;
+}
+
+function timeToSeconds(t) {
+  const parts = t.split(':').map(Number);
+  return parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
 }
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -251,6 +334,45 @@ function isWeekend(d) {
   return day === 0 || day === 6;
 }
 
+function initDebug() {
+  if (!debugMode) return;
+  const badge = document.createElement('div');
+  badge.className = 'debug-badge';
+  badge.textContent = 'DEBUG';
+  document.body.appendChild(badge);
+
+  const container = document.getElementById('debugContainer');
+  container.innerHTML = `
+    <div class="debug-panel">
+      <label>设置时间：</label>
+      <input type="time" id="debugTime" step="1">
+      <button id="debugSet">应用</button>
+      <button id="debugReset">重置</button>
+    </div>
+  `;
+
+  const chinaTime = getRealChinaTime();
+  document.getElementById('debugTime').value =
+    `${pad(chinaTime.getHours())}:${pad(chinaTime.getMinutes())}:${pad(chinaTime.getSeconds())}`;
+
+  document.getElementById('debugSet').addEventListener('click', () => {
+    const val = document.getElementById('debugTime').value;
+    if (!val) return;
+    const parts = val.split(':').map(Number);
+    const targetDaySec = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
+    const realNow = getRealChinaTime();
+    const realDaySec = realNow.getHours() * 3600 + realNow.getMinutes() * 60 + realNow.getSeconds();
+    debugOffset = (targetDaySec - realDaySec) * 1000;
+  });
+
+  document.getElementById('debugReset').addEventListener('click', () => {
+    debugOffset = 0;
+    const chinaTime = getRealChinaTime();
+    document.getElementById('debugTime').value =
+      `${pad(chinaTime.getHours())}:${pad(chinaTime.getMinutes())}:${pad(chinaTime.getSeconds())}`;
+  });
+}
+
 function buildTimeline() {
   const container = document.getElementById('timeline');
   container.innerHTML = '';
@@ -258,11 +380,12 @@ function buildTimeline() {
     const div = document.createElement('div');
     div.className = 'phase future';
     div.id = `phase-${i}`;
+    const timeLabel = p.end ? `${p.start}~${p.end}` : p.start;
     div.innerHTML = `
       <div class="dot"></div>
       <div class="phase-header">
         <div class="phase-left">
-          <span class="phase-time">${p.time}</span>
+          <span class="phase-time">${timeLabel}</span>
           <span class="phase-name">${p.name}</span>
         </div>
         <span class="phase-countdown" id="cd-${i}">--:--</span>
@@ -283,85 +406,79 @@ function update() {
   clockEl.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   dateEl.textContent = `${now.getFullYear()}年${pad(now.getMonth()+1)}月${pad(now.getDate())}日 星期${weekDays[now.getDay()]}`;
 
-  const nowMin = now.getHours() * 60 + now.getMinutes();
   const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-  const weekend = isWeekend(now);
+  const weekend = isWeekend(now) && !debugMode;
 
   if (weekend) {
     statusEl.textContent = '周末休市';
     statusEl.className = 'market-status status-closed';
     PHASES.forEach((_, i) => {
-      const el = document.getElementById(`phase-${i}`);
-      el.className = 'phase past';
+      document.getElementById(`phase-${i}`).className = 'phase past';
       document.getElementById(`cd-${i}`).textContent = '休市';
     });
     return;
   }
 
-  // 找到下一个尚未到达的时间点 => 即为当前激活项
   let activeIdx = -1;
   for (let i = 0; i < PHASES.length; i++) {
-    if (nowSec < timeToMinutes(PHASES[i].time) * 60) {
+    const p = PHASES[i];
+    const startSec = timeToSeconds(p.start);
+    const endSec = p.end ? timeToSeconds(p.end) : null;
+    if (endSec !== null && nowSec >= startSec && nowSec < endSec) {
       activeIdx = i;
       break;
     }
   }
 
-  // 所有时间点都已过 => 已收盘
-  if (activeIdx === -1) {
-    statusEl.textContent = '今日已收盘';
-    statusEl.className = 'market-status status-closed';
-    PHASES.forEach((_, i) => {
-      const el = document.getElementById(`phase-${i}`);
-      el.className = 'phase past';
-      document.getElementById(`cd-${i}`).textContent = '已结束';
-    });
-    return;
-  }
+  const STATUS_MAP = {
+    trading: ['交易中', 'market-status status-trading'],
+    auction: ['竞价中', 'market-status status-auction'],
+    pause:   ['暂停交易', 'market-status status-break'],
+    closed:  ['今日已收盘', 'market-status status-closed'],
+  };
 
-  // 根据已经过去的最近时间点判断当前市场状态
-  const lastPassedIdx = activeIdx - 1;
-  if (lastPassedIdx < 0) {
+  if (activeIdx !== -1) {
+    const [label, cls] = STATUS_MAP[PHASES[activeIdx].status];
+    statusEl.textContent = label;
+    statusEl.className = cls;
+  } else if (nowSec < timeToSeconds(PHASES[0].start)) {
     statusEl.textContent = '盘前等待';
     statusEl.className = 'market-status status-closed';
-  } else if (lastPassedIdx === 3 || lastPassedIdx === 5) {
-    statusEl.textContent = '交易中';
-    statusEl.className = 'market-status status-trading';
-  } else if (lastPassedIdx === 0 || lastPassedIdx === 1 || lastPassedIdx === 2 || lastPassedIdx === 6) {
-    statusEl.textContent = '竞价中';
-    statusEl.className = 'market-status status-auction';
-  } else if (lastPassedIdx === 4) {
-    statusEl.textContent = '午间休市';
-    statusEl.className = 'market-status status-break';
+  } else {
+    statusEl.textContent = '今日已收盘';
+    statusEl.className = 'market-status status-closed';
   }
 
   PHASES.forEach((p, i) => {
     const el = document.getElementById(`phase-${i}`);
     const cdEl = document.getElementById(`cd-${i}`);
-    const targetSec = timeToMinutes(p.time) * 60;
+    const startSec = timeToSeconds(p.start);
+    const endSec = p.end ? timeToSeconds(p.end) : null;
 
-    if (i < activeIdx) {
-      el.className = 'phase past';
-      cdEl.textContent = '已结束';
-    } else if (i === activeIdx) {
-      el.className = 'phase active';
-      const remaining = targetSec - nowSec;
+    if (i === activeIdx) {
+      el.className = p.status === 'pause' ? 'phase active-pause' : 'phase active';
+      const remaining = endSec - nowSec;
       cdEl.textContent = formatCountdown(Math.max(0, remaining));
-      // 进度条：从上一个时间点到这个时间点的进度
-      const prevSec = (i > 0) ? timeToMinutes(PHASES[i - 1].time) * 60 : 0;
-      const total = targetSec - prevSec;
-      const elapsed = nowSec - prevSec;
+      const total = endSec - startSec;
+      const elapsed = nowSec - startSec;
       const progress = Math.min(100, Math.max(0, (elapsed / total) * 100));
       const pf = document.getElementById(`pf-${i}`);
       if (pf) pf.style.width = progress + '%';
+    } else if (
+      (endSec !== null && nowSec >= endSec) ||
+      (endSec === null && nowSec >= startSec)
+    ) {
+      el.className = 'phase past';
+      cdEl.textContent = '已结束';
     } else {
       el.className = 'phase future';
-      const remaining = targetSec - nowSec;
-      cdEl.textContent = formatCountdown(remaining);
+      const remaining = startSec - nowSec;
+      cdEl.textContent = formatCountdown(Math.max(0, remaining));
     }
   });
 }
 
+initDebug();
 buildTimeline();
 update();
 setInterval(update, 300);
